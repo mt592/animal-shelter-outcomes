@@ -1,0 +1,437 @@
+% !TEX TS-program = pdflatex
+% !TEX encoding = UTF-8 Unicode
+
+% This is a simple template for a LaTeX document using the "article" class.
+% See "book", "report", "letter" for other types of document.
+
+\documentclass[12pt]{article} % use larger type; default would be 10pt
+
+\usepackage[utf8]{inputenc} % set input encoding (not needed with XeLaTeX)
+
+%%% Examples of Article customizations
+% These packages are optional, depending whether you want the features they provide.
+% See the LaTeX Companion or other references for full information.
+
+%%% PAGE DIMENSIONS
+\usepackage{geometry}                % See geometry.pdf to learn the layout options. There are lots.
+\geometry{letterpaper}                   % ... or a4paper or a5paper or ... 
+% \geometry{margin=2in} % for example, change the margins to 2 inches all round
+% \geometry{landscape} % set up the page for landscape
+%   read geometry.pdf for detailed page layout information
+
+\usepackage{graphicx} % support the \includegraphics command and options
+\usepackage{amssymb}
+\usepackage{textcomp}     % to make an arrow \textrightarrow
+
+\usepackage{color}
+% \usepackage[parfill]{parskip} % Activate to begin paragraphs with an empty line rather than an indent
+
+%%% PACKAGES
+\usepackage{booktabs} % for much better looking tables
+\usepackage{array} % for better arrays (eg matrices) in maths
+\usepackage{paralist} % very flexible & customisable lists (eg. enumerate/itemize, etc.)
+\usepackage{verbatim} % adds environment for commenting out blocks of text & for better verbatim
+\usepackage{subfig} % make it possible to include more than one captioned figure/table in a single float
+% These packages are all incorporated in the memoir class to one degree or another...
+
+%%% HEADERS & FOOTERS
+\usepackage{fancyhdr} % This should be set AFTER setting up the page geometry
+\pagestyle{fancy} % options: empty , plain , fancy
+\renewcommand{\headrulewidth}{0pt} % customise the layout...
+\lhead{}\chead{}\rhead{}
+\lfoot{}\cfoot{\thepage}\rfoot{}
+
+%%% SECTION TITLE APPEARANCE
+\usepackage{sectsty}
+\allsectionsfont{\sffamily\mdseries\upshape} % (See the fntguide.pdf for font help)
+% (This matches ConTeXt defaults)
+
+%%% ToC (table of contents) APPEARANCE
+\usepackage[nottoc,notlof,notlot]{tocbibind} % Put the bibliography in the ToC
+\usepackage[titles,subfigure]{tocloft} % Alter the style of the Table of Contents
+\renewcommand{\cftsecfont}{\rmfamily\mdseries\upshape}
+\renewcommand{\cftsecpagefont}{\rmfamily\mdseries\upshape} % No bold!
+
+%%% END Article customizations
+
+%%% The "real" document content comes below...
+
+\title{Animal Shelter Outcomes - Capstone}
+\author{\color{black} Michelle Turovsky\\}\color{black}
+
+\begin{document}
+\maketitle
+
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+%%% SECTION 1
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+
+\section{Introduction}
+Animal shelters throughout the U.S. house over 6 million animals every year \textsuperscript{9}. Animal centers provide temporary homes for strays, lost pets, and surrendered animals. Their ultimate goal is to appropriately re-home every animal if possible. With so many cats and dogs moving through the animal shelter system, it would be advantageous to understand the intricacies of what makes a certain cat more adoptable, or what makes a certain lost dog more likely to be returned to their owner. I will attempt to use pet intake data provided by the Austin Animal Center (AAC) to predict how an animal will leave the shelter. 
+
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+%%% SECTION 2
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+
+\section{Dataset Overview}
+
+The Austin Animal Center (AAC) is one of the largest “no-kill” shelters in the United States. AAC provides a temporary home to over 18,000 animals every year. The shelter is interested in predicting the outcome of animals that pass through their shelter. Understanding the outcome of an animal ahead of time can help animal shelters better utilize their resources, or advertise for particular animals with different nuances. Having volunteered at AAC many times in the past, I hope to bring some knowledge of the animal shelter system to my data analysis!
+
+The data provided by AAC is collected for cats and dogs when they first enter the animal center, and when they leave the animal center. There are 26,729 observations and 10 variables in the dataset provided. Variables include: 
+
+\begin{itemize}
+\item AnimalID
+\item Name
+\item DateTime
+\item OutcomeType
+\item OutcomeSubtype
+\item AnimalType
+\item SexuponOutcome
+\item AgeuponOutcome
+\item Breed
+\item Color
+\end{itemize}
+
+The data was collected between October 2013 and March 2016. The final variable I will predict is \textbf{OutcomeType}. All data is kindly hosted on Kaggle and can be found at: https://www.kaggle.com/c/shelter-animal-outcomes/data. 
+
+Unfortunately it looks like the dataset is rather imbalanced. When looking at our prediction variable \textbf{OutcomeType} we can clearly see that Adoptions and Transfers outweigh Return to Owner, Euthanasia, and Death in the dataset. Animals with an outcome of Died only account for less than 1\% of observations. 
+
+\begin{figure}[!htb]
+  \centering
+  \includegraphics[width=.70\linewidth]{outcome.png}                  
+  \caption{OutcomeType Distribution}
+  \label{fig:OutcomeType}
+\end{figure}
+
+
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+%%% SECTION 3
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+
+\newpage
+
+\section{Related Work}
+There has been a recent uptick in using analytics to predict the outcomes of animals in shelter. One example is the paper entitled "Animal Shelter Dogs: Factors Predicting Adoption Versus Euthanasia" \textsuperscript{2} by Jamie DeLeeuw. DeLeeuw found that the factors that contributed most to an animal's outcome included the reason the animal entered the shelter, the breed of the animal, and how small the animal was. DeLeeuw used a pet database system that included information on a dog health, weight, coat, breed, and more. DeLeeuw's dataset was comprised of 7,602 dogs. While DeLeeuw had a dataset with slightly more attributes than I have for predicting animal outcomes, I would guess that some of the same variables will also affect my model as well, such as coat color, being a purebred, and being a small animal breed. A few major differences between DeLeeuw's study and my own, is that DeLeeuw only looked at dog outcomes, and only had two levels for the outcome variable: adopted vs euthanized. My own analysis will evaluate both cats and dogs, and will include five different outcome types. 
+
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+%%% SECTION 4
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+
+\section{Data Exploration and Preprocessing}
+\subsection{Feature Removal} 
+
+Upon inspecting the data, there are two variables that stand out as columns that can be removed from the dataset altogether: \textbf{AnimalID} and \textbf{OutcomeSubtype}. 
+
+\textbf{AnimalID} will probably not be very useful for prediction purposes, as it is just a randomized placeholder assigned to an animal within the shelter. 
+
+The variable \textbf{OutcomeSubtype} will also be removed. Upon inspecting \textbf{OutcomeSubtype}, I can see that it is essentially a more granular variable of \textbf{OutcomeType}. Each \textbf{OutcomeSubtype} maps perfectly to an \textbf{OutcomeType}. Since this variable would be a perfect predictor of \textbf{OutcomeType}, I will remove it to ensure I am not ‘cheating’ when creating a model. 
+
+\newpage
+
+\begin{figure}[!htb]
+  \centering
+  \includegraphics[width=.5\linewidth]{outcomesubtype.png}                  
+  \caption{OutcomeType by OutcomeSubType Distribution}
+  \label{fig:OutcomeType}
+\end{figure}
+
+\newpage
+
+\subsection{Missing Data} 
+Next I will clean any missing data. There are several missing instances in the \textbf{Name, SexuponOutcome}, and \textbf{AgeuponOutcome} variables. 
+
+\begin{figure}[!htb]
+  \centering
+  \includegraphics[width=.75\linewidth]{nulls.png}                  
+  \caption{Nulls in the Dataset}
+  \label{fig:OutcomeType}
+\end{figure}
+
+The \textbf{Name} variable has quite a few missing instances. Let us assume that the specific animal name has no bearing on an animal’s outcome (i.e. Buddy is no more likely to get adopted than Spot). However, I have heard that when animals have a name assigned to them, people will be more likely to be attracted to their online adoption profile. Furthermore, if an animal has a name, it is more likely that it may be a lost pet than a stray, and this will likely affect the \textbf{OutcomeType}.  I will transform this \textbf{Name} variable into a boolean variable stating whether or not the animal has been assigned a name.
+
+\textbf{SexuponOutcome} appears to be missing in only 1 row of data, and \textbf{AgeuponOutcome} is missing in only 18 rows of data. Since these are both fairly small numbers compared to our large dataset, I will remove these rows of data altogether, and I will likely not suffer from any information loss. The AAC has apparently done a great job in documenting most of the fields for every pet that passes through their shelter!
+
+\subsection{Feature Engineering} 
+
+The \textbf{DateTime} variable is probably too specific, and I can group the days and times together. By evaluating the distribution of \textbf{OutcomeType} by a given month, I can see that there is generally a lot of activity around the end of year. This corresponds with a major holiday season in the US, and perhaps people adopt pets as gifts? I can try grouping month into quarters. Next, taking a look at the hours in which outcomes occur, I can see that there is a huge spike in adoptions in the afternoon/evening. Transfers seem to have a spike first thing in the morning. I can group hours into a bucketed time of day variable, with buckets of Morning, Afternoon, Evening, and Night. 
+
+Biplots can be informative for visualizing data patterns for similarity. The Time of Day Biplot (below) illustrates that most adoptions happen in the evening, while euthansia is typically performed in the morning. By plotting features in this manner we can get a sense for similarity between data points across various columns.
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=.8\linewidth]{biplot_time.png}                  
+  \caption{Time of Day Biplot}
+  \label{fig:OutcomeType}
+\end{figure}
+\newpage
+
+
+Upon inspecting \textbf{AgeuponOutcome}, I can see that it is fairly messy. It has every type of unit to describe the animal age, including weeks, months, and years. To make everything consistent, I will parse the numeric value from the character, and transform all animal ages into days. Next, based on boxplots (below) of \textbf{Age} vs \textbf{OutcomType} I will group these consistent ages into buckets of 'Month', 'TwoMonth', 'HalfYear', 'Year', 'TwoYear' and 'Adult'. These buckets will group together animals around the same ages, with more granularity for younger animals, as I know that very small animals under one month are more likely to die unexpectedly, and animals around two months are more likely to be adopted. We can see from Figure 6 below that TwoYear old animals get Adopted and Transferred most frequently, while surprisingly OneMonth old animals get transferred quite frequently. 
+
+\begin{figure}[!htb]
+  \centering
+  \includegraphics[width=.8\linewidth]{age_outcome.png}                  
+  \caption{Age Distribution}
+  \label{fig:OutcomeType}
+\end{figure}
+
+
+\begin{figure}[!htb]
+  \centering
+  \includegraphics[width=.85\linewidth]{age_dots.png}                  
+  \caption{Age Distribution Bucketed}
+  \label{fig:OutcomeType}
+\end{figure}
+
+\newpage
+\newpage
+
+The \textbf{SexuponOutcome} variable is really two different variables; gender and whether or not the animal is neutered/spayed. I will split apart the gender portion and the information on neutering into two separate variables. I will consider 'spayed' to be the same thing as 'neutered', because these are gender specific words that we will no longer need, given we will have a gender variable on its own. 
+
+Looking at the \textbf{Color} variable, I can see that there are 366 unique value. For animals, there is a difference between coating and color, but it looks like a lot of the entries have both a coat type and color merged together. I can create a series of coat variables including TabbyTiger, Brindle, Merle, Tick, and Point from these coat characters. Next, I will split apart the remaining colors so that there is one color listed per column. Assuming that the animal shelter listed the animals' most prominent color first, I will discard the secondary color in an attempt to reduce some of the attribute dimensionality. 
+
+The \textbf{Breed} variable has a whopping 1,380 unique values. It also is a little misleading- some animals have their breed listed as 'Mix' and other animals simply have two distinct breeds listed but do not specify 'Mix'. I will consider both of these types of animals mixes, and create a new variable \textbf{Mix} indicating more than one breed. Next I will split apart the \textbf{Breed} variable to get a single breed per column. I know that oftentimes dog breeds are considered similar if they fall into the same breed group. The American Kennel Club \textsuperscript{7} curates a list of dog breeds and groups. I have copied this information from their website into a CSV file and added a few more dog breeds into the list based on quick google searches. By doing all of this I can bucket the 1,380 number of distinct dog breeds into under 10 groups. 
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=.4\linewidth]{dog_group.png}                  
+  \caption{Dog Breed to Group Mapping}
+  \label{fig:OutcomeType}
+\end{figure}
+
+While all of the features and buckets that I created are not perfect and may cause some specificity loss, I need to reduce the number of variables I will end up with, especially after I create dummy variables for attributes that have many unique values. This may even help prevent some overfitting. 
+
+\subsection{Evaluate Feature Significance}
+Throughout feature engineering and the exploratory process I performed multiple chisq.test's on the features related to \textbf{OutcomeType}. All engineered attributes have an extremely low p-value for Pearson's Chi-squared test, and therefore are likely going to be good predictors of our \textbf{OutcomeType} variable. Additionally I created a few biplots of the features I engineered to get a sense for which variables and features will likely help contribute in my \textbf{OutcomeType} predictions. 
+
+
+
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+%%%Section 5
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+%%%%%%%%%%%%%
+\section{Data Analysis and Results}
+\subsection{Models}
+
+Since all of our attributes are now categorical variables, I will create dummy variables for them using caret's dummyVars function. I will specify that I want a full rank matrix here, meaning that I will remove any collinearity in the data by having one less attribute than the number of unique categories per attribute. 
+
+I will evaluate several models; decision tree (RPART), random forest (RF), K Nearest Neighbors (KNN), Naive Bayes (NB), gradient boosting machine (GBM), and a Multilayer Perceptron Artificial Neural Network (ANN). 
+
+\subsection{Method of Evaluation}
+Since the animal shelter dataset is rather imbalanced, I will not only look at accuracy but also evaluate the sensitivity and specificity of the models as the evaluation measure for this classification problem. In classification cases where a dataset is imbalanced it is important to evaluate more than just accuracy. If an imbalanced dataset is 80\% class A and 20\% class B, a model predicting class A for every instance would have 80\% accuracy. Clearly this type of model does not provide any valuable predictive power. Therefore by evaluating sensitivity and specificity we can with greater confidence identify a model with good predictive power. Sensitivity indicates the portion of positive instances that are identified as positive, while specificity indicates the portion of negative instances of a class that are identified as negative. 
+
+The "no information rate" is the accuracy a model would have by just guessing the most common class in the dataset for every instance. For this project the no information rate would have been 40.38\%. We will aim to beat the no information rate with all of our models. 
+
+\subsection{Dataset Imbalance}
+While iterating through this project I attempted to implement a few methods to combat the imbalance in my dataset. I first tried upsampling my dataset to take random samples of my minority classes (mainly the \textbf{OutcomeType}s Died and Euthanized) and add these instances back into the original dataset. I also tried a more advanced method of creating synthetic data called Synthetic Minority Oversampling Technique (SMOTE). SMOTE creates synthetic data based on a nearest neighbor algorithm. SMOTE therefore can add additional instances of minority classes to a dataset to balance out the classes.
+
+After separately implementing both of these methods to fix class imbalance and running the new balanced datasets separately through my models below, my accuracy scores actually decreased significantly. I suspect this may be have happened because upsampling or creating synthetic data based on so few instances introduced more noise into my models. This leads me to believe that the current set of features in my data is not highly predictive of \textbf{OutcomeType}. Other features that characterize an animals health or behavior may be more indicative of what their \textbf{OutcomeType} would be. Perhaps in the future Kaggle and the AAC can talk about collecting additional metrics on animals in the shelter to augment the current dataset. For now, given the lowered accuracy rates using imbalanced dataset correction techniques, I will proceed with the original imbalanced dataset. 
+
+\subsection{Train-Test Split}
+I will split the data into 80\% training data and 20\% test data. When I run the algorithms I will use 5-fold cross validation. Given better computing power, I could increase this to 10 or higher, but for now 5 will allow me to run these algorithms in a reasonable amount of time. 
+
+\subsection{Hyperparameters}
+I will allow the caret package in R to autotune most of the hyperparameters for my models. In a few instances, after running the models several times I selected my own gridsearch values for certain hyperparemeters in various models. In general this yielded me slightly better results.
+
+\subsection{Results}
+
+\begin{itemize}
+
+\item RPART: I used RPART as a decision tree baseline model. We can see from the confusion matrix that RPART had a hard time with the sparse classes and did not predict any instances of Died or Euthanasia. So while accuracy is not bad, the classes we are most interested in looking at never get predicted. RPART uses gini impurity to split along different variables, and by doing so it selected the Neutered variable as well as several Age related variables as those having the most "pure" splits for the purposes of our classification problem.
+
+\begin{figure}[bp!]
+  \centering
+  \includegraphics[width=.87\linewidth]{rpart_score.png}                  
+  \caption{RPART Accuracy}
+  \label{fig:RF Model}
+\end{figure}
+
+\begin{figure}[bp!]
+  \centering
+  \includegraphics[width=.75\linewidth]{rpart_acc.png}                  
+  \caption{RPART Confusion Matrix}
+  \label{fig:RF Model}
+\end{figure}
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=.75\linewidth]{rpart_tree.png}                  
+  \caption{RPART Decision Tree}
+  \label{fig:RF Model}
+\end{figure}
+
+\newpage
+
+\item Random Forest: Random Forests are slightly more complicated model but in general perform very well on both classification and regression problems. They allow evaluation of feature importance which is really interesting for this project. Unsurprisingly, whether an animal is neutered or not is a very important variable to the random forest model just like it was in RPART. This could be because animal shelters do not allow dogs and cats to be adopted without being spayed or neutered, and perhaps these animals only have other types of outcomes. Other important variables include whether or not the animal has been given a name, which we did not see in RPART. It looks like the animal breed and color are less important in judging an outcome. The sensitivity and specificity of the random forest is a mixed bag. For the \textbf{OutcomeType} of Adoption and Transfer, the sensitivity and specificity are fairly high. This means the probability of the model predicting the \textbf{OutcomeType} being Adoption or Transfer is high among animals whose true \textbf{OutcomeType} is Adoption or Transfer, and the probability of the model predicting the \textbf{OutcomeType} not being Adoption or Transfer is high among animals whose true \textbf{OutcomeType} is not Adoption or Transfer. However, the sensitivities for \textbf{OutcomeType} Died and Euthanasia are near zero. This means the model is not correctly identifying very many animals with these \textbf{OutcomeTypes}, but is still doing a better job than RPART. 
+
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=.4\linewidth]{rf_train.png}                  
+  \caption{RF Model Accuracies}
+  \label{fig:RF Model}
+\end{figure}
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=.85\linewidth]{rf_sen.png}                  
+  \caption{RF Sensitivity/Specificy}
+  \label{fig:RF Model}
+\end{figure}
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=.75\linewidth]{rf_varimp.png}                  
+  \caption{RF Variable Importance}
+  \label{fig:RF Model}
+\end{figure}
+
+\vspace*{5 cm}
+
+
+\item KNN: This algorithm performed best with \textbf{k}=15. This means that the model used 15 nearest neighbor data observations when classifying \textbf{OutcomeType}. KNN performed worse than the random forest in terms of sensitivity and specificity in almost every \textbf{OutcomeType} value. For this reason, I would not consider KNN a strong contender for a final model of animal shelter outcomes classification. 
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=.75\linewidth]{knn_train.png}                  
+  \caption{KNN Model}
+  \label{fig:KNN Model}
+\end{figure}
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=.7\linewidth]{knn_sen.png}                  
+  \caption{KNN Sensitivity/Specificity}
+  \label{fig:DecisionTree}
+\end{figure}
+
+\vspace*{3 cm}
+
+\item Naive Bayes: This model performed the poorest out of all models in terms of accuracy, and again it struggled with \textbf{OutcomeType}s of Died and Euthanized. I was surprised to find Naive Bayes performing so poorly, given it generally performs well even on limited data. However perhaps this dataset is violating an important assumption of my predictors all being independent from one another. Due to the poor generalizability of Naive Bayes I will also not consider it for selection as our final model. 
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=.7\linewidth]{nb_train.png}                  
+  \caption{Naive Bayes Model}
+  \label{fig:KNN Model}
+\end{figure}
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=.7\linewidth]{nb_sen.png}                  
+  \caption{Naive Bayes Sensitivity/Specificity}
+  \label{fig:KNN Model}
+\end{figure}
+
+
+
+\item GBM: This model performed the best with \textbf{interaction.depth}=3, and \textbf{n.trees}=150. It looks like the feature importance is extremely similar to that of the random forest. The animal being neutered, having a name, being young, and having an outcome occur in the evening were all very important features to the model. The accuracy of GBM is just slightly higher than the random forest accuracy. Inspecting the sensitivity and specificity of GBM and comparing it to that of the random forest, I'm not convinced that the values indicate GBM is necessarily the superior model. However, when looking at the 95\% accuracy confidence interval for GBM, it does look like this interval is higher than the confidence interval for the random forest accuracy. 
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=.75\linewidth]{gbm_train.png}                  
+  \caption{GBM Model}
+  \label{fig:GBM Model}
+\end{figure}
+
+\begin{figure}[!h!]
+  \centering
+  \includegraphics[width=.7\linewidth]{gbm_sen.png}                  
+  \caption{GBM Sensitivity/Specificity}
+  \label{fig:DecisionTree}
+\end{figure}
+
+\vspace*{5.5 cm}
+
+\item Artificial Neural Net: A Multilayer Perceptron will allow us to predict a multi-class classification problem. To use keras and tensorflow in R took some setup and merging with Python using the "reticulate" package. I will set up a simple neural net model with the first layer having 5 neurons, and the second softmax layer having 5 possible probability scores for the 5 \textbf{OutcomeType} options. This model is fairly simple with only 10 epochs, and is trained using an ADAM optimizer. By the 5th or 6th epoch, accuracy appears to asymptote. This ANN did fairly well in terms of accuracy with nearly the highest accuracy score. We can also see from the confusion matrix that a lot of classes were predicted correctly, however no instances of Death were predicted. 
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=.75\linewidth]{nn_loss.png}                  
+  \caption{ANN Loss}
+  \label{fig:GBM Model}
+\end{figure}
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=.75\linewidth]{nn_cf.png}                  
+  \caption{ANN Accuracy}
+  \label{fig:GBM Model}
+\end{figure}
+
+\end{itemize}
+
+\newpage
+\vspace*{1 cm}
+
+\section{Conclusion} 
+Overall it would appear that GBM was the best model for our task. It had high scores for accuracy and decent sensitivity/specificity compared to some of the other models. The ANN also performed very well, but I think one of the strengths of using GMB is the ability to see feature importance. While accuracy was not extremely high even in the best model, I was still able to achieve some gain over the no information rate. In the future, better feature engineering (or maybe even less feature engineering), and using more data could improve upon the accuracy rate.
+
+The variable importance output from the GBM (and random forest) was very interesting to inspect. It appears that some of the features I engineered, such as \textbf{HasName} and \textbf{Neuter} are very important to the model. Times of day and times of year are also very important surprisingly. 
+
+Processing this dataset was an excellent reminder that real world data is often extremely messy and difficult to wrangle. Tough decisions need to be made regarding missing values, categorical attributes with too many unique values, and general feature engineering. There is a huge trade off between having large datasets with high explanatory power, and algorithm computation time. 
+
+There are several items to consider as future improvements to this project. First would be enhancing the volume of data collected to overcome issues with imbalanced data. The \textbf{OutcomeType} class has relatively few instances of animal death or euthanasia. While this is great news in the real world, for the purposes of this analysis it makes predicting rare animal outcomes harder.  One sure-fire way to combat this data imbalance issue would be to obtain the most updated version of the Austin Animal Center data, and perhaps obtain data on even more characteristics about each animal. 
+
+Another possibility to augment this analysis includes implementing entity embedding for categorical variables with a high number of unique entries. Entity embedding essentially feeds one-hot encoded data into a neural network. The weights from the hidden layer of the neural network would be used as a representation of the categorical variable but weights would be of low-dimensionality. This could potentially be a more robust method to process the \textbf{Breed} and \textbf{Color} variables. I merely grouped these variables into higher-order categories, but perhaps entity embedding would help the predictions. 
+
+\newpage
+
+\section{References:}
+
+\begin{enumerate}
+\item Ali, Saqib. “Recursive Partitioning / Decision Trees Using CARET.” RPubs, rpubs.com/saqib/rpart.
+
+\item DeLeeuw , Jamie L. ANIMAL SHELTER DOGS: FACTORS PREDICTING ADOPTION VERSUS EUTHANASIA. Wichita State University, Dec. 2010,
+soar.wichita.edu/bitstream/handle/10057/3647/d10022\_DeLeeuw.pdf.
+
+\item Fabio. “CA - Correspondence Analysis in R: Essentials.” STHDA, 24 Sept. 2017, www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/113-ca-correspondence-analysis-in-r-essentials/\#visualization-and-interpretation.
+
+\item Facts + Statistics: Pet Statistics. www.iii.org/fact-statistic/facts-statistics-pet-statistics.
+
+\item “Keras: Deep Learning in R.” DataCamp Community, www.datacamp.com/community/tutorials/keras-r-deep-learning.
+
+\item Kuhn, Max. The Caret Package. 27 Mar. 2019, topepo.github.io/caret/pre-processing.html\#creating-dummy-variables.
+
+\item “List of Breeds by Group – American Kennel Club.” American Kennel Club, www.akc.org/public-education/resources/general-tips-information/dog-breeds-sorted-groups/.
+
+\item Maulik, Patel. “Naive Bayes.” RPubs, rpubs.com/maulikpatel/224581.
+
+\item “Pet Statistics.” ASPCA, www.aspca.org/animal-homelessness/shelter-intake-and-surrender/pet-statistics.
+
+\item “Tutorial: Basic Classification.” Keras-RStudio, keras.rstudio.com/articles/tutorial-basic-classification.html.
+
+\item “Understanding Medical Tests: Sensitivity, Specificity, and Positive Predictive Value.” HealthNewsReview.org, www.healthnewsreview.org/toolkit/tips-for-understanding-studies/understanding-medical-tests-sensitivity-specificity-and-positive-predictive-value/.
+
+\end{enumerate}
+
+
+
+\vfill
+%\vspace{1cm}
+\hrulefill
+\begin{center}
+%{\scriptsize  Last updated: \today\- }
+% ---- PLEASE LEAVE THIS BACKLINK FOR ATTRIBUTION AS PER CC-LICENSE
+%\\Typeset using \color{blue} \textsc{t\kern -.12em\loIr.4ex\hbox{e}\kern-.1em xs}hop}
+\end{center}
+\end{document}  

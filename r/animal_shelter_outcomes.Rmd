@@ -1,0 +1,587 @@
+---
+title: "Capstone Final Project"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: console
+---
+
+**Michelle Turovsky**
+<br>
+**mturo2**
+
+***
+
+<br>
+
+##Section 1 - Dataset Overview
+
+####Setup environment
+```{r, warning = FALSE, message = FALSE}
+options(scipen=999)
+options(warn=-1)
+library(tidyr)
+library(dplyr)
+library(caret)
+library(glmnet)
+library(stringr)
+library(datapasta)
+library(fuzzyjoin)
+library(data.table)
+library(ggplot2)
+library(ggpubr)
+library(FactoMineR)
+library(factoextra)
+library(rpart.plot)
+library(klaR)
+library(keras)
+library(tensorflow)
+```
+
+<br>
+
+####Download and view metadata
+```{r}
+outcomes <- read.csv("~/train.csv", sep=",", stringsAsFactors = FALSE, header = TRUE, na.strings="", encoding="UTF-8")
+
+str(outcomes)
+summary(outcomes)
+summary(is.na(outcomes))
+
+
+colnames(outcomes)
+length(unique(outcomes$Name))
+length(unique(outcomes$DateTime))
+length(unique(outcomes$OutcomeType))
+length(unique(outcomes$AnimalType))
+length(unique(outcomes$SexuponOutcome))
+length(unique(outcomes$AgeuponOutcome))
+length(unique(outcomes$Breed))
+length(unique(outcomes$Color))
+
+table(outcomes$OutcomeType)
+```
+
+<br>
+
+###Section 2 - PreProcessing Data
+
+####Feature Removal
+```{r}
+outcomes<-outcomes %>% 
+  dplyr::select(-AnimalID, -OutcomeSubtype)
+```
+
+####Missing Data Removal
+```{r}
+outcomes<-outcomes %>% 
+  filter(!is.na(SexuponOutcome)) %>% 
+  filter(!is.na(AgeuponOutcome))
+```
+
+####Evaluate Feature Significance
+```{r}
+###Look at outcome variable
+outcomes %>% 
+  group_by(OutcomeType) %>% 
+  summarize(n=n()) %>% 
+  ggplot(., aes(x=OutcomeType, y=n))+
+  geom_bar(stat="identity")
+
+###Evaluate Feature Significance 
+tbl1 <- with(outcomes, table(SexuponOutcome, OutcomeType))
+barplot(tbl1, beside = TRUE, legend = TRUE)
+chisq.test(tbl1)
+
+tbl2 <- with(outcomes, table(AnimalType, OutcomeType))
+barplot(tbl2, beside = TRUE, legend = TRUE)
+chisq.test(tbl2)
+
+tbl3 <- with(outcomes, table(OutcomeType, AgeuponOutcome))
+barplot(tbl3, beside = TRUE, legend = TRUE)
+chisq.test(tbl3)
+```
+
+<br>
+
+####Feature Engineering
+```{r}
+######################################################
+#################  Name Variable  ####################
+######################################################
+outcomes<-outcomes %>% 
+  mutate(HasName = ifelse(is.na(Name), 0 ,1)) %>% 
+  dplyr::select(-Name)
+
+###Evaluate Feature Significance
+tbl4 <- with(outcomes, table(HasName, OutcomeType))
+barplot(tbl4, beside = TRUE, legend = TRUE)
+chisq.test(tbl4)
+```
+
+<br>
+
+```{r}
+######################################################
+################ DateTime Variable ###################
+######################################################
+outcomes<-outcomes %>% 
+  mutate(Month=as.numeric(substr(DateTime, 6, 7))) %>% 
+  mutate(Hour=as.numeric(substr(DateTime, 12, 13))) %>% 
+  dplyr::select(-DateTime)
+
+###Evaluate Feature Significance
+tbl5 <- with(outcomes, table(Month, OutcomeType))
+barplot(tbl5, beside = TRUE, legend = TRUE)
+chisq.test(tbl5)
+
+tbl6 <- with(outcomes, table(OutcomeType, Hour))
+barplot(tbl6, beside = TRUE, legend = TRUE)
+chisq.test(tbl6)
+
+outcomes<-outcomes %>%
+  mutate(Month_Group=ifelse(Month %in% c(1,2,3), "Q1",
+                      ifelse(Month %in% c(4,5,6), "Q2",
+                             ifelse(Month %in% c(7,8,9), "Q3", "Q4")))) %>%
+  dplyr::select(-Month)
+
+###Evaluate Feature Significance
+tbl7 <- with(outcomes, table(Month_Group, OutcomeType))
+barplot(tbl7, beside = TRUE, legend = TRUE)
+chisq.test(tbl7)
+
+outcomes<-outcomes %>% 
+  mutate(Hour_Group=ifelse(Hour<6, "Night",
+                     ifelse(Hour>=6 & Hour <12, "Morning",
+                            ifelse(Hour>=12 & Hour <17, "Afternoon",
+                                   ifelse(Hour>=17 & Hour <19, "Evening", "Night")))))%>% 
+  dplyr::select(-Hour)
+
+###Evaluate Feature Significance
+tbl8 <- with(outcomes, table(Hour_Group, OutcomeType))
+barplot(tbl8, beside = TRUE, legend = TRUE)
+chisq.test(tbl8)
+res.ca <- CA(tbl8, graph = FALSE)
+fviz_ca_biplot(res.ca, repel = TRUE)
+
+```
+
+<br>
+
+```{r}
+######################################################
+############# AgeuponOutcome Variable ################
+######################################################
+outcomes<-outcomes %>% 
+  separate(AgeuponOutcome, c("Age_Number", "Age_Type"))
+
+unique(outcomes$Age_Type)
+
+outcomes<-outcomes %>% 
+  mutate(Age_Number=as.numeric(Age_Number)) %>% 
+  mutate(AgeuponOutcome=ifelse(Age_Type %in% c("year", "years"), ceiling(Age_Number*365), Age_Number)) %>% 
+  mutate(AgeuponOutcome=ifelse(Age_Type %in% c("month", "months"), ceiling(Age_Number*30), AgeuponOutcome)) %>%
+  mutate(AgeuponOutcome=ifelse(Age_Type %in% c("week", "weeks"), ceiling(Age_Number*7), AgeuponOutcome))
+
+age_box<-boxplot(as.numeric(outcomes$AgeuponOutcome)~outcomes$OutcomeType,
+     col="lightblue",
+     xlab="OutcomeType",
+     ylab="Age (Days)")
+
+age_box$names
+age_box$stats
+
+outcomes<-outcomes %>%
+  dplyr::select(-Age_Number, -Age_Type) %>%
+  mutate(AgeuponOutcome=ifelse(AgeuponOutcome<=30, "OneMonth",
+                                      ifelse(AgeuponOutcome<=60, "TwoMonth",
+                                              ifelse(AgeuponOutcome>60 & AgeuponOutcome<=180, "HalfYear",
+                                             ifelse(AgeuponOutcome>180 & AgeuponOutcome<=360, "Year",
+                                                    ifelse(AgeuponOutcome>360 & AgeuponOutcome<=750, "TwoYear", 
+                                                           ifelse(AgeuponOutcome>750 & AgeuponOutcome<=2190, "Adult", "OldAdult")))))))
+
+###Evaluate Feature Significance
+tbl9 <- with(outcomes, table(AgeuponOutcome, OutcomeType))
+barplot(tbl9, beside = TRUE, legend = TRUE)
+chisq.test(tbl9)
+
+ggballoonplot(as.data.frame(tbl9), fill = "value")+
+  scale_fill_viridis_c(option = "C")
+
+res.ca <- CA(tbl9, graph = FALSE)
+fviz_ca_biplot(res.ca, repel = TRUE)
+```
+
+<br>
+
+```{r}
+######################################################
+############# SexuponOutcome Variable ################
+######################################################
+outcomes<-outcomes %>% 
+  separate(SexuponOutcome, c("Neuter", "Gender")) 
+
+outcomes<-outcomes %>% 
+  mutate(Gender=ifelse(is.na(Gender), "Unknown", Gender)) %>% 
+  mutate(Neuter=ifelse(Neuter=="Spayed", "Neutered", Neuter))
+
+###Evaluate Feature Significance
+tbl10 <- with(outcomes, table(Neuter, OutcomeType))
+barplot(tbl10, beside = TRUE, legend = TRUE)
+chisq.test(tbl10)
+
+ggballoonplot(as.data.frame(tbl10), fill = "value")+
+  scale_fill_viridis_c(option = "C")
+
+tbl11 <- with(outcomes, table(Gender, OutcomeType))
+barplot(tbl11, beside = TRUE, legend = TRUE)
+chisq.test(tbl11)
+
+ggballoonplot(as.data.frame(tbl11), fill = "value")+
+  scale_fill_viridis_c(option = "C")
+
+res.ca <- CA(tbl11, graph = FALSE)
+fviz_ca_biplot(res.ca, repel = TRUE)
+
+```
+
+<br>
+
+```{r}
+######################################################
+################# Color Variable #####################
+######################################################
+
+outcomes2<-outcomes %>% 
+  mutate(Tabby_Tiger=ifelse(str_detect(Color, "Tabby"), 1, 0)) %>% 
+  mutate(Tabby_Tiger=ifelse(str_detect(Color, "Tiger"), 1, Tabby_Tiger)) %>% 
+  mutate(Brindle=ifelse(str_detect(Color, "Brindle"), 1, 0)) %>% 
+  mutate(Merle=ifelse(str_detect(Color, "Merle"), 1, 0)) %>%
+  mutate(Tick=ifelse(str_detect(Color, "Tick"), 1, 0)) %>% 
+  mutate(Point=ifelse(str_detect(Color, "Point"), 1, 0)) 
+
+
+outcomes3<-outcomes2 %>% 
+    mutate(Color=gsub("Tabby", "", Color)) %>% 
+    mutate(Color=gsub("Tiger", "", Color)) %>% 
+    mutate(Color=gsub("Brindle", "", Color)) %>% 
+    mutate(Color=gsub("Merle", "", Color)) %>% 
+    mutate(Color=gsub("Tick", "", Color)) %>% 
+    mutate(Color=gsub("Point", "", Color)) %>% 
+    mutate(Color=gsub("/", " ", Color)) %>% 
+    mutate(Color=gsub("\\s+"," ", Color)) %>% 
+    separate(Color, c("Color1", "Color2"), sep=" ") %>%
+    dplyr::select(-Color2) %>% 
+    rename(Color=Color1)
+
+length(unique(outcomes3$Color))
+table(outcomes3$Color)
+
+###Evaluate Feature Significance
+tbl12 <- with(outcomes3, table(Color, OutcomeType))
+chisq.test(tbl12)
+
+ggballoonplot(as.data.frame(tbl12), fill = "value")+
+  scale_fill_viridis_c(option = "C")
+
+```
+
+<br>
+
+```{r}
+######################################################
+################# Breed Variable #####################
+######################################################
+dog_groups <- read.csv("~/dog_groups.csv", sep=",", stringsAsFactors = FALSE, header = TRUE, na.strings="", encoding="UTF-8") %>% 
+  dplyr::select(-X)
+
+length(unique(outcomes3$Breed))
+
+outcomes4<-outcomes3 %>% 
+  mutate(Mix=ifelse(str_detect(Breed, "Mix"), 1, 0)) %>% 
+  mutate(Mix=ifelse(str_detect(Breed, '/'), 1, Mix)) %>% 
+  mutate(Breed=gsub("Mix", "", Breed))
+
+head(unique(outcomes4$Breed),10)
+
+outcomes5<-outcomes4 %>% 
+  separate(Breed, c("Breed1", "Breed2"), sep="/") %>% 
+  mutate(Breed2=ifelse(is.na(Breed2), "", Breed2)) %>% 
+  mutate(Breed1=trimws(Breed1)) %>% 
+  mutate(Breed2=trimws(Breed2)) %>% 
+  mutate(Breed1=gsub("\\bTerr\\b", "Terrier", Breed1)) %>% 
+  mutate(Breed2=gsub("\\bTerr\\b", "Terrier", Breed2))  
+  
+grp1<-left_join(outcomes5, dog_groups, by=c("Breed1"="Breed"))
+grp2<-left_join(grp1, dog_groups, by=c("Breed2"="Breed"))
+grp3<-grp2 %>% 
+  mutate(Group.x=ifelse(is.na(Group.x), Group.y, Group.x)) %>% 
+  mutate(Group.x=ifelse(is.na(Group.x), "Unknown", Group.x)) %>% 
+  mutate(Group.y=ifelse(Group.y==Group.x,NA, Group.y)) %>% 
+  mutate(Final_Group=paste0(Group.x, "," ,Group.y)) 
+grp3$Final_Group<-gsub(",NA", "", grp3$Final_Group)
+
+grp3$Final_Group<-sapply(strsplit(as.character(grp3$Final_Group), ","), function(x) paste(sort(x), collapse=" "))
+  
+outcomes6<-grp3 %>% 
+  mutate(Final_Group=ifelse(AnimalType=="Cat", Breed1, Final_Group)) %>% 
+  dplyr::select(-Breed1, -Breed2, -Group.x, -Group.y) 
+
+#Cat groups with less than 50 instances
+cat_grps<-outcomes6 %>% 
+  filter(AnimalType=="Cat") %>% 
+  group_by(Final_Group) %>% 
+  summarize(n=n()) %>% 
+  filter(n<50)
+
+outcomes6<-outcomes6 %>% 
+  mutate(Final_Group=ifelse(Final_Group %in% cat_grps$Final_Group, "Other", Final_Group))
+  
+length(unique(outcomes6$Final_Group))
+
+###Evaluate Feature Significance
+tbl13 <- with(outcomes6, table(Final_Group, OutcomeType))
+chisq.test(tbl13)
+```
+
+<br>
+
+###Section 3 - Modeling
+
+####One Hot Encode
+```{r}
+outcomes6[,2:ncol(outcomes6)] <- lapply(outcomes6[,2:ncol(outcomes6)], factor)
+
+###Make dummy variables - full rank matrix
+dmy <- dummyVars("OutcomeType ~ .", data = outcomes6, fullRank=T)
+trsf<- data.frame(predict(dmy, newdata = outcomes6))
+outcomes7<-cbind(outcomes6$OutcomeType, trsf) %>% 
+  rename(OutcomeType='outcomes6$OutcomeType')
+head(trsf)
+
+outcomes7[,2:ncol(outcomes7)] <- lapply(outcomes7[,2:ncol(outcomes7)], factor)
+
+```
+
+####Train Test Split
+
+When creating my final train and test datasets I initially attempted to combat my imbalanced dataset by upsampling my minority classes, and creating sythentic data with SMOTE to see if model accuracy would improve. However after running various models on these datasets, I found accuracy to decrease significantly. Therefore I have left the following code here to document my work, but will not run it for the purposes of my final output.
+
+<br>
+
+Upsampling and SMOTE datasets
+```{r}
+########################################
+############### SMOTE ##################
+########################################
+# library(DMwR)
+# set.seed(1)
+# in_train <- createDataPartition(outcomes7$OutcomeType, p = 0.8, list = FALSE)
+# outcomes_train <- outcomes7[in_train, ]
+# sm<-outcomes_train %>%
+#   mutate(OutcomeType=as.factor(ifelse(OutcomeType=="Died", "Died", "common")))
+# newData <- SMOTE(OutcomeType ~ ., sm, perc.over = 2500, perc.under=100)
+# newData<-newData %>%
+#   as.data.frame() %>%
+#   filter(OutcomeType=="Died") %>%
+#   droplevels()
+# outcomes_train<-rbind(newData, outcomes_train) %>%
+#   droplevels()
+# outcomes_test <- outcomes7[-in_train, ]
+ 
+########################################
+############ Upsampling ################
+########################################
+
+# outcomes_samp<-as.data.frame(upSample(x=outcomes_train[,-1], y=as.factor(outcomes_train[,1]), list=TRUE))
+# colnames(outcomes_samp)<-c(colnames(outcomes_train[,-1]), "OutcomeType")
+# head(outcomes_samp)
+# table(outcomes_samp$OutcomeType)
+# outcomes_train<-outcomes_samp
+# outcomes_test <- outcomes7[-in_train, ]
+```
+
+<br>
+
+Final Train-Test Datasets
+```{r}
+set.seed(1)
+in_train <- createDataPartition(outcomes7$OutcomeType, p = 0.8, list = FALSE)
+
+outcomes_train <- outcomes7[in_train, ]
+outcomes_test <- outcomes7[-in_train, ]
+```
+
+<br>
+
+####RPART
+```{r}
+
+set.seed(1)
+rp <- caret::train(
+  as.factor(OutcomeType) ~., data = outcomes_train, 
+          method="rpart",
+  trControl = trainControl("cv", number = 5))
+
+rp
+
+predictions=predict(rp, outcomes_test)
+confusionMatrix(predictions, outcomes_test$OutcomeType)
+
+rpart.plot(rp$finalModel)
+
+```
+
+<br>
+
+####Random Forest
+```{r}
+rf_grid <- expand.grid(mtry = c(5, 15, 25))
+
+Sys.time()
+set.seed(1)
+rf <- caret::train(
+  as.factor(OutcomeType) ~., data = outcomes_train, method = "rf",
+  tuneGrid = rf_grid, 
+  trControl = trainControl("cv", number = 5))
+Sys.time()
+rf
+
+varImp(rf)
+
+predictions_rf=predict(rf, outcomes_test)
+confusionMatrix(predictions_rf, outcomes_test$OutcomeType)
+
+```
+
+<br>
+
+####KNN 
+```{r}
+Sys.time()
+set.seed(1)
+knn <- caret::train(
+  OutcomeType ~., data = outcomes_train, method = "knn",
+  tuneGrid   = expand.grid(k = c(2,10,15)),
+  trControl = trainControl("cv", number = 5))
+Sys.time()
+knn
+
+predictions_knn=predict(knn, outcomes_test)
+confusionMatrix(predictions_knn, outcomes_test$OutcomeType)
+```
+
+<br>
+
+####Naive Bayes
+```{r}
+Sys.time()
+set.seed(1)
+nb <- caret::train(y=outcomes_train$OutcomeType,
+                   x=outcomes_train[,-1], method = "nb",
+                   trControl = trainControl("cv", number = 5))
+Sys.time()
+nb
+
+predictions_nb=predict(nb, outcomes_test)
+confusionMatrix(predictions_nb, outcomes_test$OutcomeType)
+```
+
+<br>
+
+####GBM
+```{r}
+Sys.time()
+set.seed(1)
+gbm <- caret::train(
+  OutcomeType ~., data = outcomes_train, method = "gbm",
+  trControl = trainControl("cv", number = 5))
+Sys.time()
+gbm
+summary(gbm)
+
+predictions_gbm=predict(gbm, outcomes_test)
+confusionMatrix(predictions_gbm, outcomes_test$OutcomeType)
+
+```
+
+<br>
+
+####ANN - MLP
+```{r}
+outcomes_train <- outcomes7[in_train, ]
+outcomes_test <- outcomes7[-in_train, ]
+```
+
+```{r}
+train_labels<-as.data.frame(outcomes_train[,1 ])
+colnames(train_labels)<-c("OutcomeType")
+outcomes_train <- outcomes_train[,-1 ]
+
+test_labels <- as.data.frame(outcomes_test[,1 ])
+colnames(test_labels)<-c("OutcomeType")
+outcomes_test <- outcomes_test[,-1 ]
+
+dmy <- dummyVars(" ~ .", data = test_labels)
+test_labels<- data.frame(predict(dmy, newdata = test_labels))
+
+dmy <- dummyVars(" ~ .", data = train_labels)
+train_labels<- data.frame(predict(dmy, newdata = train_labels))
+```
+
+
+```{r}
+Sys.setenv(KERAS_IMPLEMENTATION='tensorflow')
+library(keras)
+model <- keras_model_sequential() %>%
+  layer_dense(units = 5, activation = "relu",
+              input_shape = dim(outcomes_train)[2]) %>%
+  layer_dense(units = 5, activation = "softmax")
+
+model %>% compile(
+  loss = "categorical_crossentropy",
+  optimizer = "adam",
+  metrics = "accuracy")
+model
+
+set.seed(1)
+history <- model %>% fit(as.matrix(outcomes_train), 
+                         as.matrix(train_labels),
+                         batch_size=50,
+                         epochs = 10,
+                      validation_data=list(as.matrix(outcomes_test),as.matrix(test_labels)))
+
+plot(history)
+```
+
+```{r}
+predictions=model %>% predict_classes(as.matrix(outcomes_test), batch_size = 128)
+```
+
+```{r}
+plot(history$metrics$acc, main="Model Accuracy", xlab = "epoch", ylab="accuracy", col="blue", type="l")
+# Plot the accuracy of the validation data
+lines(history$metrics$val_acc, col="green")
+# Add Legend
+legend("bottomright", c("train","test"), col=c("blue", "green"), lty=c(1,1))
+```
+
+```{r}
+outcomes_test <- outcomes7[-in_train, ]
+labs<-outcomes_test[,1] 
+predictions<-predictions %>%
+  as.data.frame() %>% 
+  mutate(preds=ifelse(.==0, "Adoption", ifelse(.==1, "Died",
+                                        ifelse(.==2, "Euthanasia",
+                                               ifelse(.==3, "Return_to_owner", "Transfer"))))) %>% 
+  dplyr::select(preds) %>% 
+  as.vector()
+table(predictions$preds,as.vector(labs))
+```
+
+```{r}
+score <- model %>% evaluate(as.matrix(outcomes_test[,-1]), as.matrix(test_labels), batch_size = 128)
+print(score)
+```
